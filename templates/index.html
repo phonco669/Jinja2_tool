@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jinja2 Real-time Renderer</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f2f5;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 10px;
+            gap: 10px;
+            overflow: hidden;
+        }
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .pane-header {
+            padding: 10px;
+            background-color: #e9ecef;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+        }
+        textarea {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            resize: none;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+        #preview-content {
+            flex: 1;
+            padding: 10px;
+            overflow: auto;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+        .error {
+            color: red;
+            background-color: #ffe6e6;
+            padding: 10px;
+            border-top: 1px solid #ffcccc;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        Jinja2 Real-time Renderer Tool
+    </header>
+    <div class="container">
+        <div class="pane">
+            <div class="pane-header">Template Code (Jinja2)</div>
+            <textarea id="template-input" placeholder="Enter your Jinja2 template here..."><h1>Hello, {{ name }}!</h1>
+<ul>
+{% for item in items %}
+    <li>{{ item }}</li>
+{% endfor %}
+</ul></textarea>
+        </div>
+        <div class="pane" style="flex: 0.5;">
+            <div class="pane-header">Context Data (JSON)</div>
+            <textarea id="context-input" placeholder='{"name": "World", "items": ["Apple", "Banana"]}'>{
+    "name": "User",
+    "items": ["Item 1", "Item 2", "Item 3"]
+}</textarea>
+        </div>
+        <div class="pane">
+            <div class="pane-header">Rendered Output</div>
+            <iframe id="preview-content"></iframe>
+            <div id="error-box" class="error" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const templateInput = document.getElementById('template-input');
+        const contextInput = document.getElementById('context-input');
+        const previewFrame = document.getElementById('preview-content');
+        const errorBox = document.getElementById('error-box');
+
+        let timeout = null;
+
+        function render() {
+            const template = templateInput.value;
+            const context = contextInput.value;
+
+            fetch('/render', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ template, context }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    errorBox.textContent = data.error;
+                    errorBox.style.display = 'block';
+                } else {
+                    errorBox.style.display = 'none';
+                    // Write content to iframe
+                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                    doc.open();
+                    doc.write(data.result);
+                    doc.close();
+                }
+            })
+            .catch(err => {
+                errorBox.textContent = "Network or Server Error: " + err;
+                errorBox.style.display = 'block';
+            });
+        }
+
+        function debounceRender() {
+            clearTimeout(timeout);
+            timeout = setTimeout(render, 500); // 500ms delay
+        }
+
+        templateInput.addEventListener('input', debounceRender);
+        contextInput.addEventListener('input', debounceRender);
+
+        // Initial render
+        render();
+    </script>
+</body>
+</html>
