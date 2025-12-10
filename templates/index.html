@@ -69,6 +69,19 @@
 <body>
     <header>
         Jinja2 Real-time Renderer Tool
+        <div style="margin-top:8px;">
+            <label for="variant-select">样式类型：</label>
+            <select id="variant-select">
+                <option value="info">信息</option>
+                <option value="success">成功</option>
+                <option value="warning">警告</option>
+                <option value="error">错误</option>
+                <option value="clear">清除</option>
+            </select>
+            <label style="margin-left:12px;">
+                <input type="checkbox" id="apply-adapter" /> 应用适配器
+            </label>
+        </div>
     </header>
     <div class="container">
         <div class="pane">
@@ -99,19 +112,23 @@
         const contextInput = document.getElementById('context-input');
         const previewFrame = document.getElementById('preview-content');
         const errorBox = document.getElementById('error-box');
+        const variantSelect = document.getElementById('variant-select');
+        const applyAdapterCheckbox = document.getElementById('apply-adapter');
 
         let timeout = null;
 
         function render() {
             const template = templateInput.value;
             const context = contextInput.value;
+            const variant = variantSelect.value || 'info';
+            const applyAdapter = !!applyAdapterCheckbox.checked;
 
             fetch('/render', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ template, context }),
+                body: JSON.stringify({ template, context, variant, applyAdapter }),
             })
             .then(response => response.json())
             .then(data => {
@@ -140,6 +157,8 @@
 
         templateInput.addEventListener('input', debounceRender);
         contextInput.addEventListener('input', debounceRender);
+        variantSelect.addEventListener('change', debounceRender);
+        applyAdapterCheckbox.addEventListener('change', debounceRender);
 
         // Initial render
         render();
