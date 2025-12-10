@@ -70,7 +70,16 @@
     <header>
         Jinja2 Real-time Renderer Tool
         <div style="margin-top:8px;">
-            <label for="variant-select">样式类型：</label>
+            <label for="preset-select">预制样式：</label>
+            <select id="preset-select">
+                <option value="classic">classic</option>
+                <option value="soft">soft</option>
+                <option value="outline">outline</option>
+                <option value="solid">solid</option>
+                <option value="banner">banner</option>
+                <option value="card">card</option>
+            </select>
+            <label for="variant-select" style="margin-left:12px;">样式类型：</label>
             <select id="variant-select">
                 <option value="info">信息</option>
                 <option value="success">成功</option>
@@ -115,6 +124,7 @@
         const previewFrame = document.getElementById('preview-content');
         const errorBox = document.getElementById('error-box');
         const variantSelect = document.getElementById('variant-select');
+        const presetSelect = document.getElementById('preset-select');
         const applyAdapterCheckbox = document.getElementById('apply-adapter');
         const copyButton = document.getElementById('copy-button');
         const copyStatus = document.getElementById('copy-status');
@@ -126,6 +136,7 @@
             const template = templateInput.value;
             const context = contextInput.value;
             const variant = variantSelect.value || 'info';
+            const preset = presetSelect.value || 'classic';
             const applyAdapter = !!applyAdapterCheckbox.checked;
 
             fetch('/render', {
@@ -133,7 +144,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ template, context, variant, applyAdapter }),
+                body: JSON.stringify({ template, context, variant, preset, applyAdapter }),
             })
             .then(response => response.json())
             .then(data => {
@@ -164,6 +175,7 @@
         templateInput.addEventListener('input', debounceRender);
         contextInput.addEventListener('input', debounceRender);
         variantSelect.addEventListener('change', debounceRender);
+        presetSelect.addEventListener('change', debounceRender);
         applyAdapterCheckbox.addEventListener('change', debounceRender);
 
         copyButton.addEventListener('click', async () => {

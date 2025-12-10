@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from jinja2 import Template, TemplateSyntaxError
+import re
 import json
 import webbrowser
 from threading import Timer
@@ -45,7 +46,7 @@ THEME_VARIANTS = {
     },
 }
 
-def apply_theme_to_template(template_code: str, theme: dict) -> str:
+def apply_theme_to_template(template_code: str, theme: dict, preset: str = 'classic') -> str:
     """
     将用户模板中的常见内联颜色替换为选中主题的颜色值。
 
@@ -63,6 +64,26 @@ def apply_theme_to_template(template_code: str, theme: dict) -> str:
         code = code.replace('color:#d46b08', f"color:{theme['title']}")
         code = code.replace('color:#595959', f"color:{theme['text']}")
         code = code.replace('⚠️', theme.get('icon', ''))
+
+        extra = ''
+        if preset == 'soft':
+            extra = f"border-left:3px solid {theme['border']}; box-shadow:0 2px 8px rgba(0,0,0,0.04)"
+        elif preset == 'outline':
+            extra = f"border-left:none; border:1px solid {theme['border']}; background:#ffffff"
+        elif preset == 'solid':
+            extra = f"border-left:none; background:{theme['title']}; color:#ffffff"
+            code = code.replace(f"color:{theme['text']}", "color:#ffffff")
+            code = code.replace(f"color:{theme['title']}", "color:#ffffff")
+        elif preset == 'banner':
+            extra = f"border-left:none; border-top:3px solid {theme['border']}; border-bottom:3px solid {theme['border']}"
+        elif preset == 'card':
+            extra = f"border-left:4px solid {theme['border']}; border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,0.08); background:#ffffff"
+
+        if extra:
+            def _inject(m):
+                content = m.group(1)
+                return f"style=\"{content}; {extra}\""
+            code = re.sub(r'style=\"([^\"]*)\"', _inject, code, count=1)
         return code
     except Exception:
         return template_code
@@ -90,6 +111,7 @@ def render():
     context_str = data.get('context', '{}')
     variant = data.get('variant', 'info')
     apply_adapter = bool(data.get('applyAdapter', False))
+    preset = data.get('preset', 'classic')
     
     context = {}
     if context_str.strip():
@@ -104,7 +126,7 @@ def render():
 
     # 可选适配器：将常见内联样式替换为当前主题值
     if apply_adapter:
-        template_code = apply_theme_to_template(template_code, theme)
+        template_code = apply_theme_to_template(template_code, theme, preset)
 
     try:
         template = Template(template_code)
