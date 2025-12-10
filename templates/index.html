@@ -81,6 +81,8 @@
             <label style="margin-left:12px;">
                 <input type="checkbox" id="apply-adapter" /> 应用适配器
             </label>
+            <button id="copy-button" style="margin-left:12px;">复制渲染代码</button>
+            <span id="copy-status" style="margin-left:8px;display:none;">已复制</span>
         </div>
     </header>
     <div class="container">
@@ -114,8 +116,11 @@
         const errorBox = document.getElementById('error-box');
         const variantSelect = document.getElementById('variant-select');
         const applyAdapterCheckbox = document.getElementById('apply-adapter');
+        const copyButton = document.getElementById('copy-button');
+        const copyStatus = document.getElementById('copy-status');
 
         let timeout = null;
+        let lastRenderedHtml = '';
 
         function render() {
             const template = templateInput.value;
@@ -142,6 +147,7 @@
                     doc.open();
                     doc.write(data.result);
                     doc.close();
+                    lastRenderedHtml = data.result || '';
                 }
             })
             .catch(err => {
@@ -159,6 +165,31 @@
         contextInput.addEventListener('input', debounceRender);
         variantSelect.addEventListener('change', debounceRender);
         applyAdapterCheckbox.addEventListener('change', debounceRender);
+
+        copyButton.addEventListener('click', async () => {
+            if (!lastRenderedHtml) {
+                copyStatus.textContent = '暂无内容';
+                copyStatus.style.display = 'inline';
+                setTimeout(() => { copyStatus.style.display = 'none'; copyStatus.textContent = '已复制'; }, 1500);
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(lastRenderedHtml);
+                copyStatus.textContent = '已复制';
+                copyStatus.style.display = 'inline';
+                setTimeout(() => { copyStatus.style.display = 'none'; }, 1500);
+            } catch (e) {
+                const ta = document.createElement('textarea');
+                ta.value = lastRenderedHtml;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                copyStatus.textContent = '已复制';
+                copyStatus.style.display = 'inline';
+                setTimeout(() => { copyStatus.style.display = 'none'; }, 1500);
+            }
+        });
 
         // Initial render
         render();
