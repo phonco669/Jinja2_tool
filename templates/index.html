@@ -18,6 +18,7 @@
             color: white;
             padding: 10px 20px;
             text-align: center;
+            position: relative;
         }
         .container {
             display: flex;
@@ -64,6 +65,50 @@
             padding: 10px;
             border-top: 1px solid #ffcccc;
         }
+        #help-button {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            background: #555;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #help-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #help-card {
+            width: 720px;
+            max-width: 92vw;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        #help-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+        }
+        #help-body {
+            padding: 12px 16px;
+            line-height: 1.6;
+        }
+        #help-footer {
+            padding: 12px 16px;
+            border-top: 1px solid #eee;
+            text-align: right;
+        }
+        .example-actions button {
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
@@ -93,6 +138,7 @@
             <button id="copy-button" style="margin-left:12px;">复制渲染代码</button>
             <span id="copy-status" style="margin-left:8px;display:none;">已复制</span>
         </div>
+        <button id="help-button">帮助</button>
     </header>
     <div class="container">
         <div class="pane">
@@ -118,6 +164,49 @@
         </div>
     </div>
 
+    {% raw %}
+    <div id="help-modal">
+        <div id="help-card">
+            <div id="help-header">使用帮助</div>
+            <div id="help-body">
+                <p>该工具用于实时预览 Jinja2 模板与 JSON 上下文的渲染结果。</p>
+                <p>使用步骤：在左侧输入模板，在中间输入 JSON；可选择预制样式与类型，勾选“应用适配器”（可选）；内容会自动渲染到右侧预览区；错误会显示在预览区下方。</p>
+                <p>可点击“复制渲染代码”将当前渲染出的 HTML 复制到剪贴板。</p>
+                <div class="example-actions" style="margin-top:8px;">
+                    <button id="example1-insert">插入示例1</button>
+                    <button id="example2-insert">插入示例2</button>
+                    <button id="example3-insert">插入示例3</button>
+                    <button id="example4-insert">插入示例4</button>
+                </div>
+                <div style="margin-top:12px;">
+                    <div style="font-weight:600; margin-bottom:6px;">示例1：基础渲染与循环</div>
+                    <pre style="background:#f7f7f7; padding:8px; overflow:auto;">&lt;h2&gt;Hello, {{ name }}!&lt;/h2&gt;
+&lt;ul&gt;
+{% for i in items %}
+  &lt;li&gt;{{ loop.index }}. {{ i|upper }}&lt;/li&gt;
+{% endfor %}
+&lt;/ul&gt;
+                    </pre>
+                    <pre style="background:#f7f7f7; padding:8px; overflow:auto;">{ "name": "Alice", "items": ["apple", "banana", "pear"] }</pre>
+                    <div style="font-weight:600; margin:10px 0 6px;">示例2：条件 + 主题变量 + join</div>
+                    <pre style="background:#f7f7f7; padding:8px; overflow:auto;">{% if items %}
+&lt;div style=&quot;border-left:4px solid #faad14; background:#fffbe6; padding:12px;&quot;&gt;
+  &lt;strong&gt;{{ theme.icon }} 列表&lt;/strong&gt;
+  &lt;p&gt;共 {{ items|length }} 项：{{ items|join(', ') }}&lt;/p&gt;
+&lt;/div&gt;
+{% else %}
+&lt;p&gt;暂无数据&lt;/p&gt;
+{% endif %}
+                    </pre>
+                    <pre style="background:#f7f7f7; padding:8px; overflow:auto;">{ "items": ["A", "B", "C"] }</pre>
+                </div>
+            </div>
+            <div id="help-footer"><button id="help-close">关闭</button></div>
+        </div>
+    </div>
+    {% endraw %}
+
+    {% raw %}
     <script>
         const templateInput = document.getElementById('template-input');
         const contextInput = document.getElementById('context-input');
@@ -203,8 +292,43 @@
             }
         });
 
+        const helpButton = document.getElementById('help-button');
+        const helpModal = document.getElementById('help-modal');
+        const helpClose = document.getElementById('help-close');
+
+        helpButton.addEventListener('click', () => { helpModal.style.display = 'flex'; });
+        helpClose.addEventListener('click', () => { helpModal.style.display = 'none'; });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') helpModal.style.display = 'none'; });
+
+        function insertExample(tpl, json, opts = {}) {
+            templateInput.value = tpl;
+            contextInput.value = json;
+            if (opts.variant) variantSelect.value = opts.variant;
+            if (opts.preset) presetSelect.value = opts.preset;
+            if (typeof opts.applyAdapter === 'boolean') applyAdapterCheckbox.checked = opts.applyAdapter;
+            debounceRender();
+        }
+
+        const example1Tpl = `<h2>Hello, {{ name }}!</h2>\n<ul>\n{% for i in items %}\n  <li>{{ loop.index }}. {{ i|upper }}</li>\n{% endfor %}\n</ul>`;
+        const example1Json = `{\n  "name": "Alice",\n  "items": ["apple", "banana", "pear"]\n}`;
+
+        const example2Tpl = `{% if items %}\n<div style="border-left:4px solid #faad14; background:#fffbe6; padding:12px;">\n  <strong>{{ theme.icon }} 列表</strong>\n  <p>共 {{ items|length }} 项：{{ items|join(', ') }}</p>\n</div>\n{% else %}\n<p>暂无数据</p>\n{% endif %}`;
+        const example2Json = `{\n  "items": ["A", "B", "C"]\n}`;
+
+        const example3Tpl = `<div style="display:flex; align-items:center; gap:12px; padding:16px 20px; margin:0; border-left:4px solid #faad14; border-radius:6px; background:#fffbe6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans',sans-serif; font-size:14px; color:#595959; line-height:1.6;">\n  <span style="font-size:20px;">⚠️</span>\n  <div>\n    <div style="font-weight:600;color:#d46b08;">抱歉，暂不支持 {{ filename or '该文件' }} 格式</div>\n    <div style="margin-top:4px;">{{ tip or '请将文件另存为受支持的格式（如 docx、pdf）后重新上传。' }}</div>\n  </div>\n</div>`;
+        const example3Json = `{\n  "filename": "CSV 文件",\n  "tip": "请另存为 docx 或 pdf 后重试"\n}`;
+
+        const example4Tpl = `<div style="border-left:4px solid #faad14; background:#fffbe6; padding:12px; border-radius:6px;">\n  <strong style="color:#d46b08;">{{ theme.icon }} 操作成功</strong>\n  <p style="color:#595959; margin:6px 0 0;">已处理 {{ count }} 项，请继续后续步骤。</p>\n</div>`;
+        const example4Json = `{\n  "count": 5\n}`;
+
+        document.getElementById('example1-insert').addEventListener('click', () => insertExample(example1Tpl, example1Json));
+        document.getElementById('example2-insert').addEventListener('click', () => insertExample(example2Tpl, example2Json, { variant: 'info', preset: 'classic', applyAdapter: false }));
+        document.getElementById('example3-insert').addEventListener('click', () => insertExample(example3Tpl, example3Json, { variant: 'warning', preset: 'classic', applyAdapter: true }));
+        document.getElementById('example4-insert').addEventListener('click', () => insertExample(example4Tpl, example4Json, { variant: 'success', preset: 'solid', applyAdapter: true }));
+
         // Initial render
         render();
     </script>
+    {% endraw %}
 </body>
 </html>
