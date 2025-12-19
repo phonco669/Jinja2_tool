@@ -320,20 +320,15 @@
         });
 
         copyButton.addEventListener('click', async () => {
-            if (!lastRenderedHtml) {
-                copyStatus.textContent = '暂无内容';
-                copyStatus.style.display = 'inline';
-                setTimeout(() => { copyStatus.style.display = 'none'; copyStatus.textContent = '已复制'; }, 1500);
-                return;
-            }
+            const textToCopy = generateEffectiveHtml();
             try {
-                await navigator.clipboard.writeText(lastRenderedHtml);
+                await navigator.clipboard.writeText(textToCopy);
                 copyStatus.textContent = '已复制';
                 copyStatus.style.display = 'inline';
                 setTimeout(() => { copyStatus.style.display = 'none'; }, 1500);
             } catch (e) {
                 const ta = document.createElement('textarea');
-                ta.value = lastRenderedHtml;
+                ta.value = textToCopy;
                 document.body.appendChild(ta);
                 ta.select();
                 document.execCommand('copy');
@@ -498,6 +493,25 @@
             const computed = ctx.fillStyle;
             if (computed.startsWith('#')) return computed;
             return '#000000';
+        }
+
+        function generateEffectiveHtml() {
+            if (!lastRenderedHtml) return '';
+            if (!gradientEnabled || gradientStops.length === 0) return lastRenderedHtml;
+            const container = document.createElement('div');
+            container.innerHTML = lastRenderedHtml;
+            let target = container.querySelector('[style*="background"]') || container.querySelector('div') || container.firstElementChild;
+            if (!target) return lastRenderedHtml;
+            const css = buildGradientCSS();
+            // Remove original background declarations
+            if (target.getAttribute('style')) {
+                const cleaned = target.getAttribute('style').replace(/background[^;]*;?/gi, '');
+                target.setAttribute('style', cleaned);
+            }
+            // Apply inline gradient to ensure portability
+            const prev = target.getAttribute('style') || '';
+            target.setAttribute('style', `${prev};background-image:${css};background-color:transparent`);
+            return container.innerHTML;
         }
     </script>
     {% endraw %}
