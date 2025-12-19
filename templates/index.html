@@ -137,6 +137,15 @@
             </label>
             <button id="copy-button" style="margin-left:12px;">复制渲染代码</button>
             <span id="copy-status" style="margin-left:8px;display:none;">已复制</span>
+            <label style="margin-left:12px;">
+                <input type="checkbox" id="gradient-enable" /> 渐变覆盖
+            </label>
+            <span id="gradient-controls" style="margin-left:8px; display:inline-flex; align-items:center; gap:6px;">
+                <span>角度</span>
+                <input type="range" id="gradient-angle" min="0" max="360" value="135" style="width:120px;">
+                <input type="number" id="gradient-angle-input" min="0" max="360" value="135" style="width:60px;">
+                <button id="gradient-add-stop">添加色标</button>
+            </span>
         </div>
         <button id="help-button">帮助</button>
     </header>
@@ -161,6 +170,9 @@
             <div class="pane-header">Rendered Output</div>
             <iframe id="preview-content"></iframe>
             <div id="error-box" class="error" style="display: none;"></div>
+            <div id="gradient-stops-panel" style="padding:10px; border-top:1px solid #eee; display:none;">
+                <div id="gradient-stops-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+            </div>
         </div>
     </div>
 
@@ -217,9 +229,21 @@
         const applyAdapterCheckbox = document.getElementById('apply-adapter');
         const copyButton = document.getElementById('copy-button');
         const copyStatus = document.getElementById('copy-status');
+        const gradientEnable = document.getElementById('gradient-enable');
+        const gradientAngleRange = document.getElementById('gradient-angle');
+        const gradientAngleInput = document.getElementById('gradient-angle-input');
+        const gradientAddStop = document.getElementById('gradient-add-stop');
+        const gradientStopsPanel = document.getElementById('gradient-stops-panel');
+        const gradientStopsList = document.getElementById('gradient-stops-list');
 
         let timeout = null;
         let lastRenderedHtml = '';
+        let gradientEnabled = false;
+        let gradientAngle = 135;
+        let gradientStops = [
+            { color: '#fffbe6', alpha: 100, pos: 0 },
+            { color: '#faad14', alpha: 20, pos: 100 },
+        ];
 
         function render() {
             const template = templateInput.value;
@@ -248,6 +272,7 @@
                     doc.write(data.result);
                     doc.close();
                     lastRenderedHtml = data.result || '';
+                    injectGradient(doc);
                 }
             })
             .catch(err => {
@@ -266,6 +291,33 @@
         variantSelect.addEventListener('change', debounceRender);
         presetSelect.addEventListener('change', debounceRender);
         applyAdapterCheckbox.addEventListener('change', debounceRender);
+        gradientEnable.addEventListener('change', () => {
+            gradientEnabled = !!gradientEnable.checked;
+            gradientStopsPanel.style.display = gradientEnabled ? 'block' : 'none';
+            const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            injectGradient(doc);
+        });
+        gradientAngleRange.addEventListener('input', () => {
+            gradientAngle = parseInt(gradientAngleRange.value || '0', 10);
+            gradientAngleInput.value = String(gradientAngle);
+            const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            injectGradient(doc);
+        });
+        gradientAngleInput.addEventListener('input', () => {
+            let v = parseInt(gradientAngleInput.value || '0', 10);
+            if (isNaN(v)) v = 0;
+            v = Math.max(0, Math.min(360, v));
+            gradientAngle = v;
+            gradientAngleRange.value = String(gradientAngle);
+            const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            injectGradient(doc);
+        });
+        gradientAddStop.addEventListener('click', () => {
+            gradientStops.push({ color: '#ffffff', alpha: 100, pos: 50 });
+            updateStopsUI();
+            const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            injectGradient(doc);
+        });
 
         copyButton.addEventListener('click', async () => {
             if (!lastRenderedHtml) {
@@ -328,6 +380,125 @@
 
         // Initial render
         render();
+        updateStopsUI();
+
+        function updateStopsUI() {
+            gradientStopsList.innerHTML = '';
+            gradientStops.forEach((stop, idx) => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.gap = '8px';
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.value = toHex(stop.color);
+                const alphaInput = document.createElement('input');
+                alphaInput.type = 'range';
+                alphaInput.min = '0';
+                alphaInput.max = '100';
+                alphaInput.value = String(stop.alpha);
+                const alphaLabel = document.createElement('span');
+                alphaLabel.textContent = stop.alpha + '%';
+                const posInput = document.createElement('input');
+                posInput.type = 'number';
+                posInput.min = '0';
+                posInput.max = '100';
+                posInput.value = String(stop.pos);
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '删除';
+                colorInput.addEventListener('input', () => {
+                    gradientStops[idx].color = colorInput.value;
+                    alphaLabel.textContent = gradientStops[idx].alpha + '%';
+                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                    injectGradient(doc);
+                });
+                alphaInput.addEventListener('input', () => {
+                    gradientStops[idx].alpha = parseInt(alphaInput.value || '0', 10);
+                    alphaLabel.textContent = gradientStops[idx].alpha + '%';
+                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                    injectGradient(doc);
+                });
+                posInput.addEventListener('input', () => {
+                    let v = parseInt(posInput.value || '0', 10);
+                    if (isNaN(v)) v = 0;
+                    v = Math.max(0, Math.min(100, v));
+                    gradientStops[idx].pos = v;
+                    posInput.value = String(v);
+                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                    injectGradient(doc);
+                });
+                delBtn.addEventListener('click', () => {
+                    gradientStops.splice(idx, 1);
+                    updateStopsUI();
+                    const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+                    injectGradient(doc);
+                });
+                row.appendChild(document.createTextNode('颜色'));
+                row.appendChild(colorInput);
+                row.appendChild(document.createTextNode('透明度'));
+                row.appendChild(alphaInput);
+                row.appendChild(alphaLabel);
+                row.appendChild(document.createTextNode('位置%'));
+                row.appendChild(posInput);
+                row.appendChild(delBtn);
+                gradientStopsList.appendChild(row);
+            });
+        }
+
+        function injectGradient(doc) {
+            if (!doc) return;
+            const oldStyle = doc.getElementById('gradient-style');
+            if (oldStyle) oldStyle.remove();
+            const target = doc.querySelector('[style*="background"]') || (doc.body ? doc.body.querySelector('div') : null) || (doc.body ? doc.body.firstElementChild : null);
+            if (!gradientEnabled || !target || gradientStops.length === 0) {
+                if (target) target.classList.remove('gradient-override');
+                return;
+            }
+            const css = buildGradientCSS();
+            const styleEl = doc.createElement('style');
+            styleEl.id = 'gradient-style';
+            styleEl.textContent = `.gradient-override{background-image:${css} !important;background-color:transparent !important}`;
+            (doc.head || doc.body).appendChild(styleEl);
+            target.style.background = '';
+            target.style.backgroundImage = '';
+            target.classList.add('gradient-override');
+        }
+
+        function buildGradientCSS() {
+            const parts = gradientStops.map(s => {
+                const rgba = hexToRgba(toHex(s.color), s.alpha);
+                const pos = Math.max(0, Math.min(100, s.pos));
+                return `${rgba} ${pos}%`;
+            });
+            return `linear-gradient(${gradientAngle}deg, ${parts.join(', ')})`;
+        }
+
+        function hexToRgba(hex, alphaPct) {
+            const rgb = hexToRgb(hex);
+            const a = Math.max(0, Math.min(100, alphaPct)) / 100;
+            return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
+        }
+
+        function hexToRgb(hex) {
+            let h = hex.replace('#', '');
+            if (h.length === 3) {
+                h = h.split('').map(x => x + x).join('');
+            }
+            const r = parseInt(h.substring(0, 2), 16);
+            const g = parseInt(h.substring(2, 4), 16);
+            const b = parseInt(h.substring(4, 6), 16);
+            return { r, g, b };
+        }
+
+        function toHex(c) {
+            if (!c) return '#000000';
+            if (c.startsWith('#')) return c;
+            const ctx = document.createElement('canvas').getContext('2d');
+            ctx.fillStyle = c;
+            const computed = ctx.fillStyle;
+            if (computed.startsWith('#')) return computed;
+            return '#000000';
+        }
     </script>
     {% endraw %}
 </body>
